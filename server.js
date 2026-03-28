@@ -34,9 +34,26 @@ cron.schedule('0 9 1,4,7,10,13,16,19,22,25,28 * *', () => {
 
 console.log('🤖 Agente de marketing iniciado. Próxima ejecución: día 1, 4, 7... del mes a las 9:00 hs.')
 
-// En Render, necesitamos un servidor HTTP mínimo para que no duerma
+// Servidor HTTP — health check + trigger manual
 import http from 'http'
-http.createServer((req, res) => {
-  res.writeHead(200)
-  res.end('Agente de marketing activo ✓')
+
+let corriendo = false
+
+http.createServer(async (req, res) => {
+  if (req.method === 'POST' && req.url === '/disparar') {
+    if (corriendo) {
+      res.writeHead(409, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Ya hay una ejecución en curso' }))
+      return
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, mensaje: 'Agente iniciado. Posts llegarán en ~1 minuto por WhatsApp.' }))
+    corriendo = true
+    await ejecutarAgente()
+    corriendo = false
+    return
+  }
+
+  res.writeHead(200, { 'Content-Type': 'text/plain' })
+  res.end('Agente de marketing activo ✓\nPOST /disparar para ejecutar manualmente.')
 }).listen(process.env.PORT || 3000)
