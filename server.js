@@ -4,7 +4,7 @@ dotenv.config()
 import cron from 'node-cron'
 import { generarTodosLosPosts } from './generator.js'
 import { enviarWhatsApp, enviarImagenWhatsApp, formatearPosts } from './whatsapp.js'
-import { generarImagen, limpiarImagenesTemp } from './images.js'
+import { obtenerImagen, limpiarImagenesTemp } from './images.js'
 import { PRODUCTOS } from './productos.js'
 
 async function ejecutarAgente() {
@@ -24,17 +24,15 @@ async function ejecutarAgente() {
       for (const post of posts) {
         const icono = post.redId === 'instagram' ? '📸' : post.redId === 'facebook' ? '👥' : '💼'
 
-        // Intentar generar imagen si hay key de Stability
-        if (process.env.STABILITY_API_KEY && productoInfo) {
+        const imagePath = productoInfo ? obtenerImagen(productoInfo.id) : null
+
+        if (imagePath) {
           try {
-            console.log(`Generando imagen para ${productoInfo.id}/${post.redId}...`)
-            const imagePath = await generarImagen(productoInfo.id, post.redId)
             await enviarImagenWhatsApp(imagePath, `${icono} *${post.red}*`)
             await new Promise(r => setTimeout(r, 2000))
-            // Enviar el texto aparte
             await enviarWhatsApp(post.texto)
           } catch (imgErr) {
-            console.error(`Error generando imagen: ${imgErr.message} — enviando solo texto`)
+            console.error(`Error enviando imagen: ${imgErr.message} — enviando solo texto`)
             await enviarWhatsApp(`${icono} *${post.red}*\n\n${post.texto}`)
           }
         } else {
