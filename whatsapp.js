@@ -5,11 +5,12 @@ export async function enviarWhatsApp(mensaje) {
   const token    = process.env.ULTRAMSG_TOKEN
   const destino  = process.env.WHATSAPP_DESTINO
 
-  await axios.post(`https://api.ultramsg.com/${instance}/messages/chat`, {
+  const response = await axios.post(`https://api.ultramsg.com/${instance}/messages/chat`, {
     token,
     to: destino,
     body: mensaje,
   })
+  console.log('UltraMsg response:', JSON.stringify(response.data))
 }
 
 export function formatearPosts(resultado) {
