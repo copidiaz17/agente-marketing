@@ -40,6 +40,19 @@ import http from 'http'
 let corriendo = false
 
 http.createServer(async (req, res) => {
+  // Test WhatsApp directo
+  if (req.method === 'POST' && req.url === '/test-whatsapp') {
+    try {
+      await enviarWhatsApp('✅ Test desde agente-marketing — WhatsApp funcionando correctamente.')
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true }))
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: err.message }))
+    }
+    return
+  }
+
   if (req.method === 'POST' && req.url === '/disparar') {
     if (corriendo) {
       res.writeHead(409, { 'Content-Type': 'application/json' })
