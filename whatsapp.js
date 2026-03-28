@@ -1,4 +1,5 @@
 import axios from 'axios'
+import fs from 'fs'
 
 export async function enviarWhatsApp(mensaje) {
   const instance = process.env.ULTRAMSG_INSTANCE
@@ -11,6 +12,23 @@ export async function enviarWhatsApp(mensaje) {
     body: mensaje,
   })
   console.log('UltraMsg response:', JSON.stringify(response.data))
+}
+
+export async function enviarImagenWhatsApp(imagePath, caption) {
+  const instance = process.env.ULTRAMSG_INSTANCE
+  const token    = process.env.ULTRAMSG_TOKEN
+  const destino  = process.env.WHATSAPP_DESTINO
+
+  const imageData = fs.readFileSync(imagePath)
+  const base64    = `data:image/png;base64,${imageData.toString('base64')}`
+
+  const response = await axios.post(`https://api.ultramsg.com/${instance}/messages/image`, {
+    token,
+    to: destino,
+    image: base64,
+    caption: caption || '',
+  })
+  console.log('UltraMsg image response:', JSON.stringify(response.data))
 }
 
 export function formatearPosts(resultado) {

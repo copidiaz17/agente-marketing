@@ -3,23 +3,49 @@ dotenv.config()
 
 import cron from 'node-cron'
 import { generarTodosLosPosts } from './generator.js'
-import { enviarWhatsApp, formatearPosts } from './whatsapp.js'
+import { enviarWhatsApp, enviarImagenWhatsApp, formatearPosts } from './whatsapp.js'
+import { generarImagen, limpiarImagenesTemp } from './images.js'
+import { PRODUCTOS } from './productos.js'
 
 async function ejecutarAgente() {
-  console.log(`[${new Date().toISOString()}] Iniciando generación de posts...`)
+  console.log(`[${new Date().toISOString()}] Iniciando generación de posts e imágenes...`)
 
   try {
     const resultado = await generarTodosLosPosts()
-    const mensajes  = formatearPosts(resultado)
 
-    console.log(`Enviando ${mensajes.length} mensajes por WhatsApp...`)
+    for (const { producto, posts } of resultado) {
+      const productoInfo = PRODUCTOS.find(p => p.nombre === producto)
 
-    for (const msg of mensajes) {
-      await enviarWhatsApp(msg)
-      // Pequeña pausa entre mensajes para no saturar
+      // Encabezado del producto
+      const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      await enviarWhatsApp(`━━━━━━━━━━━━━━━━━━━\n📢 *${producto}*\n📅 ${fecha}\n━━━━━━━━━━━━━━━━━━━`)
       await new Promise(r => setTimeout(r, 1500))
+
+      for (const post of posts) {
+        const icono = post.redId === 'instagram' ? '📸' : post.redId === 'facebook' ? '👥' : '💼'
+
+        // Intentar generar imagen si hay key de Stability
+        if (process.env.STABILITY_API_KEY && productoInfo) {
+          try {
+            console.log(`Generando imagen para ${productoInfo.id}/${post.redId}...`)
+            const imagePath = await generarImagen(productoInfo.id, post.redId)
+            await enviarImagenWhatsApp(imagePath, `${icono} *${post.red}*`)
+            await new Promise(r => setTimeout(r, 2000))
+            // Enviar el texto aparte
+            await enviarWhatsApp(post.texto)
+          } catch (imgErr) {
+            console.error(`Error generando imagen: ${imgErr.message} — enviando solo texto`)
+            await enviarWhatsApp(`${icono} *${post.red}*\n\n${post.texto}`)
+          }
+        } else {
+          await enviarWhatsApp(`${icono} *${post.red}*\n\n${post.texto}`)
+        }
+
+        await new Promise(r => setTimeout(r, 2000))
+      }
     }
 
+    limpiarImagenesTemp()
     console.log(`[${new Date().toISOString()}] Posts enviados exitosamente.`)
   } catch (err) {
     console.error(`[${new Date().toISOString()}] Error:`, err.message)
@@ -27,20 +53,17 @@ async function ejecutarAgente() {
 }
 
 // Corre cada 3 días a las 9:00 AM (días 1, 4, 7, 10, 13, 16, 19, 22, 25, 28)
-// Cron: minuto hora día-del-mes mes día-semana
 cron.schedule('0 9 1,4,7,10,13,16,19,22,25,28 * *', () => {
   ejecutarAgente()
 })
 
 console.log('🤖 Agente de marketing iniciado. Próxima ejecución: día 1, 4, 7... del mes a las 9:00 hs.')
 
-// Servidor HTTP — health check + trigger manual
 import http from 'http'
 
 let corriendo = false
 
 http.createServer(async (req, res) => {
-  // Test WhatsApp directo
   if (req.method === 'POST' && req.url === '/test-whatsapp') {
     try {
       await enviarWhatsApp('✅ Test desde agente-marketing — WhatsApp funcionando correctamente.')
@@ -60,7 +83,7 @@ http.createServer(async (req, res) => {
       return
     }
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, mensaje: 'Agente iniciado. Posts llegarán en ~1 minuto por WhatsApp.' }))
+    res.end(JSON.stringify({ ok: true, mensaje: 'Agente iniciado. Posts e imágenes llegarán en ~3 minutos por WhatsApp.' }))
     corriendo = true
     await ejecutarAgente()
     corriendo = false
